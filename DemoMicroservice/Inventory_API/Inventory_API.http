@@ -1,0 +1,57 @@
+@Inventory_API_HostAddress = http://localhost:5196
+
+GET {{Inventory_API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+### Health Check
+GET http://localhost:5003/health
+
+### Get All Inventories
+GET http://localhost:5003/api/inventory
+
+### Get Inventory by ID
+GET http://localhost:5003/api/inventory/{{inventoryId}}
+
+### Get Inventory by Product ID
+GET http://localhost:5003/api/inventory/product/{{productId}}
+
+### Get Product Quantity
+GET http://localhost:5003/api/inventory/product/{{productId}}/quantity
+
+### Get Multiple Product Quantities
+POST http://localhost:5003/api/inventory/quantities
+Content-Type: application/json
+
+{
+  "productIds": ["{{productId1}}", "{{productId2}}"]
+}
+
+### Create Inventory
+POST http://localhost:5003/api/inventory
+Content-Type: application/json
+
+{
+  "productId": "{{productId}}",
+  "quantity": 100
+}
+
+### Update Inventory
+PUT http://localhost:5003/api/inventory/{{inventoryId}}
+Content-Type: application/json
+
+{
+  "quantity": 150
+}
+
+### Update Product Quantity
+PUT http://localhost:5003/api/inventory/product/{{productId}}/quantity
+Content-Type: application/json
+
+{
+  "quantity": 80
+}
+
+### Delete Inventory
+DELETE http://localhost:5003/api/inventory/{{inventoryId}}
+
+###
