@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+option csharp_namespace = "Order_API.Protos";
+
+package inventory;
+
+// The inventory service definition
+service InventoryService {
+  // Get product quantity by product ID
+  rpc GetProductQuantity (GetProductQuantityRequest) returns (GetProductQuantityResponse);
+  
+  // Update product quantity
+  rpc UpdateProductQuantity (UpdateProductQuantityRequest) returns (UpdateProductQuantityResponse);
+  
+  // Get multiple product quantities
+  rpc GetProductQuantities (GetProductQuantitiesRequest) returns (GetProductQuantitiesResponse);
+}
+
+// Request message for getting product quantity
+message GetProductQuantityRequest {
+  string product_id = 1;
+}
+
+// Response message for getting product quantity
+message GetProductQuantityResponse {
+  string product_id = 1;
+  int32 quantity = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Request message for updating product quantity
+message UpdateProductQuantityRequest {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+// Response message for updating product quantity
+message UpdateProductQuantityResponse {
+  string product_id = 1;
+  int32 new_quantity = 2;
+  bool success = 3;
+  string message = 4;
+}
+
+// Request message for getting multiple product quantities
+message GetProductQuantitiesRequest {
+  repeated string product_ids = 1;
+}
+
+// Response message for getting multiple product quantities
+message GetProductQuantitiesResponse {
+  repeated ProductQuantity items = 1;
+  bool success = 2;
+  string message = 3;
+}
+
+// Product quantity item
+message ProductQuantity {
+  string product_id = 1;
+  int32 quantity = 2;
+} 
