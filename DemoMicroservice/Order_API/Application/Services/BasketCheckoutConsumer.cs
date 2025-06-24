@@ -31,14 +31,23 @@ public class BasketCheckoutConsumer : BackgroundService
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var factory = new ConnectionFactory
+        var factory = new ConnectionFactory() { HostName = "rabbitmq", Port = 5672, UserName = "guest", Password = "guest" };
+        IConnection connection = null;
+        int retry = 0;
+        while (connection == null && retry < 10)
         {
-            HostName = _hostname,
-            Port = _port,
-            UserName = _username,
-            Password = _password
-        };
-        var connection = factory.CreateConnection();
+            try
+            {
+                connection = factory.CreateConnection();
+            }
+            catch
+            {
+                retry++;
+                Thread.Sleep(3000); // đợi 3s rồi thử lại
+            }
+        }
+        if (connection == null)
+            throw new Exception("Could not connect to RabbitMQ after 10 retries");
         var channel = connection.CreateModel();
         channel.QueueDeclare(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
 
