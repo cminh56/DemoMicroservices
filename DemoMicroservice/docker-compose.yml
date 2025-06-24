@@ -1,0 +1,236 @@
+﻿version: '3.8'
+
+services:
+  # Database services (giữ nguyên)
+  product-db:
+    image: postgres:latest
+    container_name: product-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: productdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - product_data:/var/lib/postgresql/data
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  order-db:
+    image: postgres:latest
+    container_name: order-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orderdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - order_data:/var/lib/postgresql/data
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  inventory-db:
+    image: postgres:latest
+    container_name: inventory-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: inventorydb
+    ports:
+      - "5434:5432"
+    volumes:
+      - inventory_data:/var/lib/postgresql/data
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  catalog-db:
+    image: postgres:latest
+    container_name: catalog-db
+    environment:
+      POSTGRES_DB: catalogdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - catalog-db-data:/var/lib/postgresql/data
+    networks:
+      - demomicroservice-network
+
+  pgadmin-new:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin-new
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5051:80"
+    depends_on:
+      - catalog-db
+      - product-db
+      - order-db
+      - inventory-db
+    networks:
+      - demomicroservice-network
+
+  # API Services
+  product-api:
+    container_name: product-api
+    build:
+      context: .
+      dockerfile: Product_API/Dockerfile
+    expose:
+      - "80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings:ProductDB=Host=product-db;Port=5432;Database=productdb;Username=postgres;Password=postgres
+    depends_on:
+      product-db:
+        condition: service_healthy
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  inventory-api:
+    container_name: inventory-api
+    build:
+      context: .
+      dockerfile: Inventory_API/Dockerfile
+    expose:
+      - "80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings:InventoryDB=Host=inventory-db;Port=5432;Database=inventorydb;Username=postgres;Password=postgres
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  order-api:
+    container_name: order-api
+    build:
+      context: .
+      dockerfile: Order_API/Dockerfile
+    expose: 
+      - "80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings:OrderDB=Host=order-db;Port=5432;Database=orderdb;Username=postgres;Password=postgres
+      - InventoryService:Url=http://inventory-api:80
+    depends_on:
+      order-db:
+        condition: service_healthy
+      inventory-api:
+        condition: service_healthy
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    container_name: api-gateway
+    build:
+      context: .
+      dockerfile: ApiGateway/Dockerfile
+    ports:
+      - "5000:80"
+    depends_on:
+      product-api:
+        condition: service_healthy
+      order-api:
+        condition: service_healthy
+      inventory-api:
+        condition: service_healthy
+    networks:
+      - demomicroservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  basket-redis:
+    image: redis/redis-stack:latest
+    container_name: basket-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - demomicroservice-network
+
+  basket-api:
+    container_name: basket-api
+    build:
+      context: .
+      dockerfile: Basket_API/Dockerfile
+    expose:
+      - "80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    depends_on:
+      - basket-redis
+    networks:
+      - demomicroservice-network
+
+  catalog-api:
+    build:
+      context: .
+      dockerfile: Catalog_API/Dockerfile
+    container_name: catalog-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=catalog-db;Port=5432;Database=catalogdb;Username=postgres;Password=postgres
+    ports:
+      - "5003:80"
+    depends_on:
+      - catalog-db
+    networks:
+      - demomicroservice-network
+
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - demomicroservice-network
+
+networks:
+  demomicroservice-network:
+    driver: bridge
+
+volumes:
+  product_data:
+  order_data:
+  inventory_data:
+  catalog-db-data:
