@@ -5,6 +5,9 @@ using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace Order_API.Application.Services;
 
@@ -58,15 +61,124 @@ public class BasketCheckoutConsumer : BackgroundService
             var message = Encoding.UTF8.GetString(body);
             _logger.LogInformation("Received checkout message: {Message}", message);
 
-            // Deserialize message và tạo Order
-            using var scope = _serviceProvider.CreateScope();
-            var orderService = scope.ServiceProvider.GetRequiredService<OrderService>();
-            // TODO: Deserialize message thành DTO phù hợp, ví dụ BasketCheckoutDTO
-            // var basketCheckout = JsonSerializer.Deserialize<BasketCheckoutDTO>(message);
-            // TODO: Map sang Order, gọi orderService.AddAsync(...)
-            _logger.LogInformation("Order created for message: {Message}", message);
+            try
+            {
+                var basketCheckout = JsonSerializer.Deserialize<BasketCheckoutMessage>(message);
+                if (basketCheckout == null)
+                {
+                    _logger.LogError("Cannot deserialize basket checkout message: {Message}", message);
+                    return;
+                }
+                if (basketCheckout.Items == null || !basketCheckout.Items.Any())
+                {
+                    _logger.LogWarning("Basket checkout message has no items: {Message}", message);
+                    return;
+                }
+                _logger.LogInformation("BasketCheckoutMessage has {Count} items", basketCheckout.Items.Count);
+                using var scope = _serviceProvider.CreateScope();
+                var orderService = scope.ServiceProvider.GetRequiredService<OrderService>();
+
+                // 1. Tạo Order trước
+                var order = new Order_API.Domain.Entities.Order
+                {
+                    Id = Guid.NewGuid(),
+                    UserID = basketCheckout.UserId,
+                    OrderDate = DateTime.UtcNow,
+                    Status = "Created",
+                    PaymentMethod = basketCheckout.PaymentMethod ?? "CreditCard",
+                    OrderDetails = new List<Order_API.Domain.Entities.OrderDetail>()
+                };
+                order.TotalAmount = 0;
+                try
+                {
+                    await orderService.AddAsync(order);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to create Order for message: {Message}", message);
+                    return;
+                }
+
+                bool allDetailSuccess = true;
+                foreach (var item in basketCheckout.Items)
+                {
+                    _logger.LogInformation("Processing OrderDetail for ProductId: {ProductId}, Quantity: {Quantity}", item.ProductId, item.Quantity);
+                    var detail = new Order_API.Domain.Entities.OrderDetail
+                    {
+                        Id = Guid.NewGuid(),
+                        OrderId = order.Id,
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity,
+                        Price = 0 // TODO: lấy giá thực tế từ Product API nếu cần
+                    };
+                    try
+                    {
+                        await orderService.AddOrderDetailAsync(detail);
+                        order.TotalAmount += detail.Price * detail.Quantity;
+                        order.OrderDetails.Add(detail);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create OrderDetail for Order {OrderId}, Product {ProductId}", order.Id, item.ProductId);
+                        allDetailSuccess = false;
+                        break;
+                    }
+                }
+
+                if (!allDetailSuccess)
+                {
+                    // Xóa order đã tạo nếu có lỗi khi tạo order detail
+                    try
+                    {
+                        await orderService.RemoveAsync(order.Id);
+                        _logger.LogWarning("Order {OrderId} has been removed due to OrderDetail creation failure.", order.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to remove Order {OrderId} after OrderDetail creation failure.", order.Id);
+                    }
+                    return;
+                }
+
+                // 3. Cập nhật lại tổng tiền cho Order nếu cần
+                try
+                {
+                    order.TotalAmount = order.OrderDetails.Sum(od => od.Price * od.Quantity);
+                    await orderService.UpdateAsync(order.Id, order);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to update Order total amount for Order {OrderId}", order.Id);
+                }
+
+                _logger.LogInformation("Order created and saved for message: {Message}", message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing basket checkout message: {Message}", message);
+            }
         };
         channel.BasicConsume(queue: _queueName, autoAck: true, consumer: consumer);
         return Task.CompletedTask;
     }
+}
+
+// Thêm class tạm cho deserialize message
+internal class BasketCheckoutMessage
+{
+    public Guid UserId { get; set; }
+    
+    [JsonPropertyName("paymentMethod")]
+    public string? PaymentMethod { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<BasketCheckoutItem> Items { get; set; } = new();
+}
+internal class BasketCheckoutItem
+{
+    [JsonPropertyName("productId")]
+    public Guid ProductId { get; set; }
+
+    [JsonPropertyName("quantity")]
+    public int Quantity { get; set; }
 } 

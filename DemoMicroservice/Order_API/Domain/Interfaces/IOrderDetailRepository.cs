@@ -8,6 +8,7 @@ namespace Order_API.Domain.Interfaces
     public interface IOrderDetailRepository
     {
         Task<OrderDetail?> GetByIdAsync(Guid id);
+        Task<IEnumerable<OrderDetail>> GetByOrderIdAsync(Guid orderId);
         Task<IEnumerable<OrderDetail>> GetAllAsync();
         Task<OrderDetail> AddAsync(OrderDetail orderDetail);
         Task UpdateAsync(OrderDetail orderDetail);

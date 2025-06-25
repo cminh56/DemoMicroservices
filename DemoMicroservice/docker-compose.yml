@@ -1,4 +1,4 @@
-﻿version: '3.8'
+version: '3.8'
 
 services:
   # Database services (giữ nguyên)
@@ -112,11 +112,16 @@ services:
       dockerfile: Inventory_API/Dockerfile
     expose:
       - "80"
+      - "81"
+    ports:
+      - "81:81"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings:InventoryDB=Host=inventory-db;Port=5432;Database=inventorydb;Username=postgres;Password=postgres
+      - ASPNETCORE_URLS=http://*:80;http://*:81
+      - ConnectionStrings__DefaultConnection=Host=inventory-db;Database=inventorydb;Username=postgres;Password=postgres
     depends_on:
-      - inventory-db
+      inventory-db:
+        condition: service_healthy
     networks:
       - demomicroservice-network
 

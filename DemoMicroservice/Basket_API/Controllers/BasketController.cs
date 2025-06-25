@@ -8,6 +8,7 @@ using Basket_API.Domain.Entities;
 using Basket_API.Common.DTO;
 using Basket_API.Common.Helpers;
 using Basket_API.Common.Constants;
+using System.Linq;
 
 namespace Basket_API.Controllers
 {
@@ -74,19 +75,51 @@ namespace Basket_API.Controllers
             }
         }
 
-        [HttpPut("item")]
-        public async Task<IActionResult> UpdateBasketItem([FromQuery] Guid userId, [FromBody] BasketItemDTO itemDto)
+        [HttpPost("item")]
+        public async Task<IActionResult> AddBasketItem([FromBody] AddOrUpdateBasketItemRequest request)
         {
             try
             {
-                var item = _mapper.Map<BasketItem>(itemDto);
-                var updatedBasket = await _basketService.UpdateBasketItemAsync(userId, item);
-                var basketDto = _mapper.Map<BasketDTO>(updatedBasket);
+                var basket = await _basketService.GetByIdAsync(request.UserId) ?? new Basket_API.Domain.Entities.Basket { UserId = request.UserId };
+                var item = basket.Items.FirstOrDefault(i => i.ProductId == request.ProductId);
+                if (item != null)
+                {
+                    item.Quantity += request.Quantity;
+                }
+                else
+                {
+                    basket.Items.Add(new Basket_API.Domain.Entities.BasketItem
+                    {
+                        ProductId = request.ProductId,
+                        Quantity = request.Quantity
+                    });
+                }
+                var updated = await _basketService.AddAsync(basket);
+                var basketDto = _mapper.Map<BasketDTO>(updated);
                 return Ok(new ApiResponse<BasketDTO>(200, ResponseKeys.Updated, basketDto));
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(new ApiResponse<string>(400, ResponseKeys.ValidationError, ex.Message));
+                return StatusCode(500, new ApiResponse<string>(500, ResponseKeys.Error, ex.Message));
+            }
+        }
+
+        [HttpPut("item")]
+        public async Task<IActionResult> UpdateBasketItem([FromBody] AddOrUpdateBasketItemRequest request)
+        {
+            try
+            {
+                var basket = await _basketService.GetByIdAsync(request.UserId);
+                if (basket == null)
+                    return NotFound(new ApiResponse<string>(404, ResponseKeys.NotFound, "Basket not found."));
+                var item = basket.Items.FirstOrDefault(i => i.ProductId == request.ProductId);
+                if (item == null)
+                    return NotFound(new ApiResponse<string>(404, ResponseKeys.NotFound, "Item not found in basket."));
+
+                item.Quantity = request.Quantity;
+                var updated = await _basketService.AddAsync(basket);
+                var basketDto = _mapper.Map<BasketDTO>(updated);
+                return Ok(new ApiResponse<BasketDTO>(200, ResponseKeys.Updated, basketDto));
             }
             catch (Exception ex)
             {

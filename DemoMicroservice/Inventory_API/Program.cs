@@ -31,17 +31,27 @@ builder.Services.AddScoped<InventoryService>();
 // Add gRPC
 builder.Services.AddGrpc();
 
+// Configure Kestrel to support gRPC with HTTP/2
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(80, o => o.Protocols =
-        Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);
+    // Configure HTTP/2 endpoint for gRPC
+    options.ListenAnyIP(81, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+    
+    // Configure HTTP/1.1 endpoint for health checks
+    options.ListenAnyIP(80, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
+    });
 });
 
-//builder.WebHost.ConfigureKestrel(options =>
-//{
-//    options.ListenAnyIP(5196, o => o.Protocols =
-//        Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2);
-//});
+// Configure gRPC
+builder.Services.AddGrpc(options =>
+{
+    options.EnableDetailedErrors = true;
+});
 
 var app = builder.Build();
 

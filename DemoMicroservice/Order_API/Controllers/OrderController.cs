@@ -57,11 +57,35 @@ namespace Order_API.Controllers
             }
         }
 
+        [HttpGet("{orderId}/details")]
+        public async Task<IActionResult> GetOrderDetails(Guid orderId)
+        {
+            try
+            {
+                var orderDetails = await _orderService.GetOrderDetailsByOrderIdAsync(orderId);
+                var orderDetailsDtos = _mapper.Map<IEnumerable<OrderDetailDTO>>(orderDetails);
+                return Ok(new ApiResponse<IEnumerable<OrderDetailDTO>>(200, ResponseKeys.Success, orderDetailsDtos));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new ApiResponse<string>(404, ResponseKeys.Error, ex.Message));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<string>(500, ResponseKeys.Error, ex.Message));
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] AddOrderDTO dto)
         {
             try
             {
+                if (dto.UserID == Guid.Empty)
+                    return BadRequest(new ApiResponse<string>(400, ResponseKeys.Error, AppConstants.Validation.RequiredUserID));
+                if (string.IsNullOrWhiteSpace(dto.PaymentMethod))
+                    return BadRequest(new ApiResponse<string>(400, ResponseKeys.Error, AppConstants.Validation.RequiredPaymentMethod));
+
                 var order = _mapper.Map<Order>(dto);
                 order.OrderDate = DateTime.UtcNow;
                 var createdOrder = await _orderService.AddAsync(order);
@@ -84,17 +108,13 @@ namespace Order_API.Controllers
             try
             {
                 var order = _mapper.Map<Order>(dto);
-                var updatedOrder = await _orderService.UpdateAsync(id, order, new List<OrderDetail>());
+                var updatedOrder = await _orderService.UpdateAsync(id, order);
                 var orderDto = _mapper.Map<OrderDTO>(updatedOrder);
                 return Ok(new ApiResponse<OrderDTO>(200, ResponseKeys.Success, orderDto));
             }
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new ApiResponse<string>(404, ResponseKeys.Error, ex.Message));
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new ApiResponse<string>(400, ResponseKeys.Error, ex.Message));
             }
             catch (Exception ex)
             {

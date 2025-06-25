@@ -35,39 +35,35 @@ namespace Order_API.Application.Services
         // Thêm Order (không nhận OrderDetail)
         public async Task<Order> AddAsync(Order order)
         {
-            if (string.IsNullOrWhiteSpace(order.CustomerName))
-                throw new ArgumentException("CustomerName is required");
+            if (order.UserID == Guid.Empty)
+                throw new ArgumentException("UserID is required");
+            if (string.IsNullOrWhiteSpace(order.PaymentMethod))
+                throw new ArgumentException("PaymentMethod is required");
 
             var createdOrder = await _orderRepository.AddAsync(order);
             return createdOrder;
         }
 
         // Cập nhật Order
-        public async Task<Order> UpdateAsync(Guid id, Order order, IEnumerable<OrderDetail> orderDetails)
+        public async Task<Order> UpdateAsync(Guid id, Order order)
         {
             var existingOrder = await _orderRepository.GetByIdAsync(id);
             if (existingOrder == null)
                 throw new KeyNotFoundException($"Order {id} not found");
 
-            existingOrder.CustomerName = order.CustomerName;
-            existingOrder.OrderDate = order.OrderDate;
-            existingOrder.Note = order.Note;
-            existingOrder.Status = order.Status;
+            // Chỉ cập nhật các trường được cung cấp
+            if (order.UserID != Guid.Empty)
+                existingOrder.UserID = order.UserID;
+                
+            if (order.OrderDate != default)
+                existingOrder.OrderDate = order.OrderDate;
+                
+            if (!string.IsNullOrEmpty(order.PaymentMethod))
+                existingOrder.PaymentMethod = order.PaymentMethod;
+                
+            if (!string.IsNullOrEmpty(order.Status))
+                existingOrder.Status = order.Status;
 
-            // Xóa các OrderDetail cũ
-            var oldDetails = await _orderDetailRepository.GetAllAsync();
-            var detailsToDelete = oldDetails.Where(od => od.OrderId == id).ToList();
-            foreach (var detail in detailsToDelete)
-                await _orderDetailRepository.DeleteAsync(detail.Id);
-
-            // Thêm các OrderDetail mới
-            foreach (var detail in orderDetails)
-            {
-                detail.OrderId = id;
-                await _orderDetailRepository.AddAsync(detail);
-            }
-
-            existingOrder.TotalAmount = orderDetails.Sum(od => od.Price * od.Quantity);
             await _orderRepository.UpdateAsync(existingOrder);
             return existingOrder;
         }
@@ -158,6 +154,17 @@ namespace Order_API.Application.Services
         public async Task DeleteOrderDetailAsync(Guid id)
         {
             await _orderDetailRepository.DeleteAsync(id);
+        }
+
+        public async Task<IEnumerable<OrderDetail>> GetOrderDetailsByOrderIdAsync(Guid orderId)
+        {
+            var order = await _orderRepository.GetByIdAsync(orderId);
+            if (order == null)
+            {
+                throw new KeyNotFoundException($"Order with ID {orderId} not found");
+            }
+
+            return await _orderDetailRepository.GetByOrderIdAsync(orderId);
         }
     }
 } 

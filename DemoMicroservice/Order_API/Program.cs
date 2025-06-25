@@ -27,15 +27,25 @@ builder.Services.AddScoped<OrderService>();
 // Đăng ký Inventory Client Service
 builder.Services.AddScoped<IInventoryClientService, InventoryClientService>();
 
+// Configure gRPC client for InventoryService
 builder.Services.AddGrpcClient<InventoryService.InventoryServiceClient>(o =>
 {
-    o.Address = new Uri("http://inventory-api:80");
+    o.Address = new Uri("http://inventory-api:81");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = 
+        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 });
 
-//builder.Services.AddGrpcClient<InventoryService.InventoryServiceClient>(o =>
-//{
-//    o.Address = new Uri("http://localhost:5196");
-//});
+// Configure Kestrel to support both HTTP/1.1 and HTTP/2
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ConfigureEndpointDefaults(lo =>
+    {
+        lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+});
+
 
 builder.Services.AddHostedService<BasketCheckoutConsumer>();
 
@@ -44,6 +54,11 @@ builder.Services.AddAutoMapper(typeof(Program));
 var app = builder.Build();
 
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    db.Database.Migrate();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

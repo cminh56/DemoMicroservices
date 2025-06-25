@@ -19,9 +19,37 @@ public class InventoryClientService : IInventoryClientService
     {
         _logger = logger;
         
-        var inventoryServiceUrl = configuration["InventoryService:Url"];
-        var channel = GrpcChannel.ForAddress(inventoryServiceUrl);
+        // Use the service name as defined in docker-compose.yml
+        var inventoryServiceUrl = "http://inventory-api:81";
+        
+        _logger.LogInformation("Creating gRPC client for {InventoryServiceUrl}", inventoryServiceUrl);
+        
+        // Configure the HTTP client to use HTTP/1.1
+        var httpHandler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = 
+                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
+        
+        var httpClient = new HttpClient(httpHandler)
+        {
+            BaseAddress = new Uri(inventoryServiceUrl),
+            DefaultRequestVersion = new Version(1, 1),
+            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+        };
+        
+        // Configure gRPC channel options
+        var channel = GrpcChannel.ForAddress(inventoryServiceUrl, new GrpcChannelOptions
+        {
+            HttpClient = httpClient,
+            DisposeHttpClient = true,
+            MaxReceiveMessageSize = 16 * 1024 * 1024, // 16 MB
+            MaxSendMessageSize = 16 * 1024 * 1024,    // 16 MB
+            Credentials = Grpc.Core.ChannelCredentials.Insecure
+        });
+        
         _client = new InventoryService.InventoryServiceClient(channel);
+        _logger.LogInformation("gRPC client created successfully for {InventoryServiceUrl}", inventoryServiceUrl);
     }
 
     public async Task<int> GetProductQuantityAsync(Guid productId)

@@ -27,6 +27,13 @@ namespace Order_API.Infastructure.Repositories
             return await _context.OrderDetails.ToListAsync();
         }
 
+        public async Task<IEnumerable<OrderDetail>> GetByOrderIdAsync(Guid orderId)
+        {
+            return await _context.OrderDetails
+                .Where(od => od.OrderId == orderId)
+                .ToListAsync();
+        }
+
         public async Task<OrderDetail> AddAsync(OrderDetail orderDetail)
         {
             await _context.OrderDetails.AddAsync(orderDetail);

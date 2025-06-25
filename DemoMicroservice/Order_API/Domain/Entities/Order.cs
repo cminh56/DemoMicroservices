@@ -10,14 +10,15 @@ namespace Order_API.Domain.Entities
         public Guid Id { get; set; }
 
         [Required]
-        public string CustomerName { get; set; } = string.Empty;
+        public Guid UserID { get; set; }
 
         [Required]
         public DateTime OrderDate { get; set; } = DateTime.UtcNow;
 
         public decimal TotalAmount { get; set; }
 
-        public string? Note { get; set; }
+        [Required]
+        public string PaymentMethod { get; set; } = string.Empty;
 
         public string Status { get; set; } = string.Empty;
 
