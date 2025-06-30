@@ -30,13 +30,6 @@ builder.Services.AddAutoMapper(typeof(Program));
 
 var app = builder.Build();
 
-// Auto migrate database on startup
-//using (var scope = app.Services.CreateScope())
-//{
-//    var db = scope.ServiceProvider.GetRequiredService<ProductDbContext>();
-//    db.Database.Migrate();
-//}
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -46,5 +39,5 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok("Healthy"));
+
 app.Run();

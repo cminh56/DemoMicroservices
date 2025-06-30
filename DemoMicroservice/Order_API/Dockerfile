@@ -13,5 +13,5 @@ RUN dotnet publish "Order_API.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENV ASPNETCORE_URLS=http://+:80
+ENV ASPNETCORE_URLS=http://+:5003
 ENTRYPOINT ["dotnet", "Order_API.dll"]

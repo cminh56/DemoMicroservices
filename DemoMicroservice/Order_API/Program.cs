@@ -27,25 +27,50 @@ builder.Services.AddScoped<OrderService>();
 // Đăng ký Inventory Client Service
 builder.Services.AddScoped<IInventoryClientService, InventoryClientService>();
 
-// Configure gRPC client for InventoryService
-builder.Services.AddGrpcClient<InventoryService.InventoryServiceClient>(o =>
+// Get gRPC configuration from appsettings.json
+var grpcSection = builder.Configuration.GetSection("Grpc");
+var inventoryGrpcUrl = builder.Configuration["InventoryService:GrpcUrl"];
+
+// Configure gRPC client for InventoryService with settings from appsettings.json
+builder.Services.AddGrpcClient<InventoryService.InventoryServiceClient>(options =>
 {
-    o.Address = new Uri("http://inventory-api:81");
-}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    options.Address = new Uri(inventoryGrpcUrl);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
     ServerCertificateCustomValidationCallback = 
         HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-});
-
-// Configure Kestrel to support both HTTP/1.1 and HTTP/2
-builder.WebHost.ConfigureKestrel(options =>
+})
+.ConfigureChannel(grpcChannelOptions =>
 {
-    options.ConfigureEndpointDefaults(lo =>
+    // Configure channel options from appsettings
+    grpcChannelOptions.MaxReceiveMessageSize = grpcSection.GetValue<int>("MaxReceiveMessageSize");
+    grpcChannelOptions.MaxSendMessageSize = grpcSection.GetValue<int>("MaxSendMessageSize");
+    
+    // Configure HTTP handler
+    grpcChannelOptions.HttpHandler = new SocketsHttpHandler
     {
-        lo.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
+        EnableMultipleHttp2Connections = grpcSection.GetSection("HttpHandler").GetValue<bool>("EnableMultipleHttp2Connections"),
+        SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+        {
+            EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12 | 
+                                 System.Security.Authentication.SslProtocols.Tls13
+        }
+    };
 });
 
+// Configure Kestrel from appsettings.json if not in development
+if (!builder.Environment.IsDevelopment())
+{
+    builder.WebHost.ConfigureKestrel((context, serverOptions) =>
+    {
+        var kestrelSection = context.Configuration.GetSection("Kestrel");
+        if (kestrelSection.Exists())
+        {
+            serverOptions.Configure(kestrelSection);
+        }
+    });
+}
 
 builder.Services.AddHostedService<BasketCheckoutConsumer>();
 
@@ -53,12 +78,6 @@ builder.Services.AddAutoMapper(typeof(Program));
 
 var app = builder.Build();
 
-
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-    db.Database.Migrate();
-}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -70,6 +89,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok("Healthy"));
+
 
 app.Run();

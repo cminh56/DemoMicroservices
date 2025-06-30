@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Database services (giữ nguyên)
+  # Database services
   product-db:
     image: postgres:latest
     container_name: product-db
@@ -15,11 +15,6 @@ services:
       - product_data:/var/lib/postgresql/data
     networks:
       - demomicroservice-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   order-db:
     image: postgres:latest
@@ -34,11 +29,6 @@ services:
       - order_data:/var/lib/postgresql/data
     networks:
       - demomicroservice-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   inventory-db:
     image: postgres:latest
@@ -53,11 +43,6 @@ services:
       - inventory_data:/var/lib/postgresql/data
     networks:
       - demomicroservice-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   catalog-db:
     image: postgres:latest
@@ -95,11 +80,8 @@ services:
     build:
       context: .
       dockerfile: Product_API/Dockerfile
-    expose:
-      - "80"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings:ProductDB=Host=product-db;Port=5432;Database=productdb;Username=postgres;Password=postgres
+    ports:
+      - "5001:5001"
     depends_on:
       - product-db
     networks:
@@ -110,18 +92,11 @@ services:
     build:
       context: .
       dockerfile: Inventory_API/Dockerfile
-    expose:
-      - "80"
-      - "81"
     ports:
-      - "81:81"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://*:80;http://*:81
-      - ConnectionStrings__DefaultConnection=Host=inventory-db;Database=inventorydb;Username=postgres;Password=postgres
+      - "5002:5002"  # HTTP/1.1
+      - "5006:5006"  # gRPC
     depends_on:
-      inventory-db:
-        condition: service_healthy
+      - inventory-db
     networks:
       - demomicroservice-network
 
@@ -130,12 +105,8 @@ services:
     build:
       context: .
       dockerfile: Order_API/Dockerfile
-    expose: 
-      - "80"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings:OrderDB=Host=order-db;Port=5432;Database=orderdb;Username=postgres;Password=postgres
-      - InventoryService:Url=http://inventory-api:80
+    ports:
+      - "5003:5003"
     depends_on:
       - order-db
       - inventory-api
@@ -150,7 +121,7 @@ services:
       context: .
       dockerfile: ApiGateway/Dockerfile
     ports:
-      - "5000:80"
+      - "5000:5000"
     depends_on:
       - product-api
       - order-api
@@ -158,11 +129,15 @@ services:
     networks:
       - demomicroservice-network
 
+  # Redis Cache
   basket-redis:
-    image: redis/redis-stack:latest
+    image: redis:alpine
     container_name: basket-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
     networks:
       - demomicroservice-network
 
@@ -171,33 +146,31 @@ services:
     build:
       context: .
       dockerfile: Basket_API/Dockerfile
-    expose:
-      - "80"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5004:5004"
     depends_on:
       - basket-redis
     networks:
       - demomicroservice-network
 
   catalog-api:
+    container_name: catalog-api
     build:
       context: .
       dockerfile: Catalog_API/Dockerfile
-    container_name: catalog-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=catalog-db;Port=5432;Database=catalogdb;Username=postgres;Password=postgres
     ports:
-      - "5003:80"
+      - "5005:5005"
     depends_on:
       - catalog-db
     networks:
       - demomicroservice-network
 
   rabbitmq:
-    image: rabbitmq:latest
+    image: rabbitmq:management
     container_name: rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -213,3 +186,5 @@ volumes:
   order_data:
   inventory_data:
   catalog-db-data:
+  redis_data:
+  rabbitmq_data:

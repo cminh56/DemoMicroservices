@@ -12,5 +12,5 @@ RUN dotnet publish "Basket_API.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENV ASPNETCORE_URLS=http://+:80
+ENV ASPNETCORE_URLS=http://+:5004
 ENTRYPOINT ["dotnet", "Basket_API.dll"] 

@@ -20,7 +20,7 @@ public class InventoryClientService : IInventoryClientService
         _logger = logger;
         
         // Use the service name as defined in docker-compose.yml
-        var inventoryServiceUrl = "http://inventory-api:81";
+        var inventoryServiceUrl = "http://inventory-api:5006";
         
         _logger.LogInformation("Creating gRPC client for {InventoryServiceUrl}", inventoryServiceUrl);
         

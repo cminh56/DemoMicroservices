@@ -22,13 +22,6 @@ builder.Services.AddScoped<Catalog_API.Application.Services.CategoryService>();
 
 var app = builder.Build();
 
-// Auto migrate database on startup
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    db.Database.Migrate();
-}
-
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

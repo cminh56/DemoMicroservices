@@ -9,11 +9,37 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Đăng ký Redis
+// Configure Redis
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var configuration = builder.Configuration.GetSection("Redis")["ConnectionString"];
-    return ConnectionMultiplexer.Connect(configuration);
+    var config = ConfigurationOptions.Parse(configuration);
+    
+    // Additional configuration
+    config.AllowAdmin = true;
+    config.ReconnectRetryPolicy = new LinearRetry(5000);
+    config.ConnectTimeout = 5000;
+    
+    // Log connection attempt
+    var logger = sp.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation($"Connecting to Redis at {string.Join(",", config.EndPoints)}...");
+    
+    try
+    {
+        var redis = ConnectionMultiplexer.Connect(config);
+        redis.ConnectionFailed += (sender, e) => 
+            logger.LogError(e.Exception, "Redis connection failed");
+        
+        redis.ConnectionRestored += (sender, e) => 
+            logger.LogInformation("Redis connection restored");
+            
+        return redis;
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to connect to Redis");
+        throw;
+    }
 });
 
 // Đăng ký BasketService

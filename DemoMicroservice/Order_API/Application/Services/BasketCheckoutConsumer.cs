@@ -79,10 +79,16 @@ public class BasketCheckoutConsumer : BackgroundService
                 var orderService = scope.ServiceProvider.GetRequiredService<OrderService>();
 
                 // 1. Tạo Order trước
+                if (!Guid.TryParse(basketCheckout.UserId, out Guid userId))
+                {
+                    _logger.LogError("Invalid UserId format: {UserId}", basketCheckout.UserId);
+                    return;
+                }
+
                 var order = new Order_API.Domain.Entities.Order
                 {
                     Id = Guid.NewGuid(),
-                    UserID = basketCheckout.UserId,
+                    UserID = userId,
                     OrderDate = DateTime.UtcNow,
                     Status = "Created",
                     PaymentMethod = basketCheckout.PaymentMethod ?? "CreditCard",
@@ -166,7 +172,8 @@ public class BasketCheckoutConsumer : BackgroundService
 // Thêm class tạm cho deserialize message
 internal class BasketCheckoutMessage
 {
-    public Guid UserId { get; set; }
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = string.Empty;
     
     [JsonPropertyName("paymentMethod")]
     public string? PaymentMethod { get; set; }

@@ -14,5 +14,5 @@ RUN dotnet publish "Catalog_API.csproj" -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENV ASPNETCORE_URLS=http://+:80
+ENV ASPNETCORE_URLS=http://+:5005
 ENTRYPOINT ["dotnet", "Catalog_API.dll"] 
