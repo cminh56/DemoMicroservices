@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using AutoMapper;
 using Catalog_API.Application.Services;
 using Catalog_API.Domain.Entities;
@@ -13,6 +14,7 @@ namespace Catalog_API.Controllers
 {
     [ApiController]
     [Route("api/Catalog")]
+   
     public class CategoryController : ControllerBase
     {
         private readonly CategoryService _service;
@@ -52,7 +54,9 @@ namespace Catalog_API.Controllers
                 return StatusCode(500, new ApiResponse<string>(500, ResponseKeys.Error, ex.Message));
             }
         }
+
         [HttpPost]
+        [Authorize]
         public async Task<IActionResult> Create([FromBody] CategoryDTO dto)
         {
             try
@@ -72,6 +76,7 @@ namespace Catalog_API.Controllers
             }
         }
         [HttpPut("{id}")]
+        [Authorize]
         public async Task<IActionResult> Update(Guid id, [FromBody] CategoryDTO dto)
         {
             try
@@ -95,6 +100,7 @@ namespace Catalog_API.Controllers
             }
         }
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(Guid id)
         {
             try
