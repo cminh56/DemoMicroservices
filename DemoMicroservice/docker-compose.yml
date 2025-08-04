@@ -165,6 +165,32 @@ services:
     networks:
       - demomicroservice-network
 
+  identity-db:
+    image: postgres:latest
+    container_name: identity-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: identitydb
+    ports:
+      - "5436:5432"
+    volumes:
+      - identity_data:/var/lib/postgresql/data
+    networks:
+      - demomicroservice-network
+
+  identity-api:
+    container_name: identity-api
+    build:
+      context: .
+      dockerfile: Identity_API/Dockerfile
+    ports:
+      - "5007:5007"
+    depends_on:
+      - identity-db
+    networks:
+      - demomicroservice-network
+
   rabbitmq:
     image: rabbitmq:management
     container_name: rabbitmq
@@ -188,3 +214,4 @@ volumes:
   catalog-db-data:
   redis_data:
   rabbitmq_data:
+  identity_data:
