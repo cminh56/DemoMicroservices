@@ -4,6 +4,18 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Thêm cấu hình CORS
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // Configure rate limiting from appsettings.json
 var rateLimitingConfig = builder.Configuration.GetSection("RateLimiting");
 var globalConfig = rateLimitingConfig.GetSection("Global");
@@ -80,6 +92,9 @@ if (app.Environment.IsDevelopment())
         c.RoutePrefix = string.Empty; // Để Swagger UI là trang chủ
     });
 }
+
+// Apply CORS cho toàn bộ app
+app.UseCors();
 
 // Apply rate limiting to the reverse proxy
 app.UseRateLimiter();
