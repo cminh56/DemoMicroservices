@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using AutoMapper;
 using Basket_API.Application.Services;
 using Basket_API.Domain.Entities;
@@ -14,6 +16,7 @@ namespace Basket_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // Require authentication for all endpoints
     public class BasketController : ControllerBase
     {
         private readonly BasketService _basketService;
@@ -78,6 +81,12 @@ namespace Basket_API.Controllers
         [HttpPost("item")]
         public async Task<IActionResult> AddBasketItem([FromBody] AddOrUpdateBasketItemRequest request)
         {
+            // Ensure the user is accessing their own basket
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (currentUserId != request.UserId.ToString() && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
             try
             {
                 var basket = await _basketService.GetByIdAsync(request.UserId) ?? new Basket_API.Domain.Entities.Basket { UserId = request.UserId };
@@ -107,6 +116,12 @@ namespace Basket_API.Controllers
         [HttpPut("item")]
         public async Task<IActionResult> UpdateBasketItem([FromBody] AddOrUpdateBasketItemRequest request)
         {
+            // Ensure the user is accessing their own basket
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (currentUserId != request.UserId.ToString() && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
             try
             {
                 var basket = await _basketService.GetByIdAsync(request.UserId);
@@ -130,6 +145,12 @@ namespace Basket_API.Controllers
         [HttpDelete("item")]
         public async Task<IActionResult> DeleteBasketItem([FromQuery] Guid userId, [FromQuery] Guid productId)
         {
+            // Ensure the user is accessing their own basket
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (currentUserId != userId.ToString() && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
             try
             {
                 var updatedBasket = await _basketService.DeleteBasketItemAsync(userId, productId);
@@ -147,6 +168,7 @@ namespace Basket_API.Controllers
         }
 
         [HttpDelete("{userId}")]
+        [Authorize(Roles = "Admin")] // Only admin can delete a basket
         public async Task<IActionResult> Delete(Guid userId)
         {
             try
@@ -165,6 +187,7 @@ namespace Basket_API.Controllers
         }
 
         [HttpPost("checkout")]
+        [Authorize] // Require authentication for checkout
         public IActionResult Checkout([FromBody] object basketCheckoutDto)
         {
             _publisher.Publish(basketCheckoutDto);
