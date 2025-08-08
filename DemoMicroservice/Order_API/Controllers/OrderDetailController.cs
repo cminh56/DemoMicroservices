@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using AutoMapper;
 using Order_API.Application.Services;
 using Order_API.Domain.Entities;
@@ -13,6 +14,7 @@ namespace Order_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class OrderDetailController : ControllerBase
     {
         private readonly OrderService _orderService;
@@ -57,6 +59,7 @@ namespace Order_API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create([FromBody] AddOrderDetailDTO dto)
         {
             try
@@ -81,6 +84,7 @@ namespace Order_API.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateOrderDetailDTO dto)
         {
             try
@@ -106,6 +110,7 @@ namespace Order_API.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(Guid id)
         {
             try

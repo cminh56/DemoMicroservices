@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Impl;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,29 +33,62 @@ public class BasketCheckoutConsumer : BackgroundService
         _logger = logger;
     }
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var factory = new ConnectionFactory() { HostName = "rabbitmq", Port = 5672, UserName = "guest", Password = "guest" };
-        IConnection connection = null;
-        int retry = 0;
-        while (connection == null && retry < 10)
+        var factory = new ConnectionFactory() 
+        { 
+            HostName = _hostname, 
+            Port = _port, 
+            UserName = _username, 
+            Password = _password,
+            DispatchConsumersAsync = true,
+            AutomaticRecoveryEnabled = true,
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
+        };
+
+        IConnection? connection = null;
+        IModel? channel = null;
+        
+        // Retry connection logic
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                _logger.LogInformation("Attempting to connect to RabbitMQ at {HostName}:{Port}", _hostname, _port);
+                
                 connection = factory.CreateConnection();
+                channel = connection.CreateModel();
+ 
+                channel.QueueDeclare(
+                    queue: _queueName, 
+                    durable: true, 
+                    exclusive: false, 
+                    autoDelete: false, 
+                    arguments: null);
+                    
+                _logger.LogInformation("Successfully connected to RabbitMQ and listening on queue: {QueueName}", _queueName);
+                break; // Successfully connected, exit retry loop
             }
-            catch
+            catch (Exception ex)
             {
-                retry++;
-                Thread.Sleep(3000); // đợi 3s rồi thử lại
+                _logger.LogWarning(ex, "Failed to connect to RabbitMQ. Retrying in 10 seconds...");
+                
+                // Clean up any partial connections
+                channel?.Dispose();
+                connection?.Dispose();
+                
+                // Wait before retrying
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
         }
-        if (connection == null)
-            throw new Exception("Could not connect to RabbitMQ after 10 retries");
-        var channel = connection.CreateModel();
-        channel.QueueDeclare(queue: _queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
+        
+        if (connection == null || channel == null)
+        {
+            _logger.LogError("Failed to establish connection to RabbitMQ after multiple attempts");
+            return;
+        }
 
-        var consumer = new EventingBasicConsumer(channel);
+        var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.Received += async (model, ea) =>
         {
             var body = ea.Body.ToArray();
@@ -158,18 +192,37 @@ public class BasketCheckoutConsumer : BackgroundService
                 }
 
                 _logger.LogInformation("Order created and saved for message: {Message}", message);
+                channel.BasicAck(ea.DeliveryTag, false);
+                return;
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogError(jsonEx, "JSON deserialization error while processing checkout message");
+                channel.BasicNack(ea.DeliveryTag, false, false);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing basket checkout message: {Message}", message);
+                _logger.LogError(ex, "Error processing checkout message");
+                channel.BasicNack(ea.DeliveryTag, false, true);
             }
         };
-        channel.BasicConsume(queue: _queueName, autoAck: true, consumer: consumer);
-        return Task.CompletedTask;
+
+        channel.BasicQos(0, 1, false); // Process one message at a time
+        channel.BasicConsume(queue: _queueName, autoAck: false, consumer: consumer);
+        
+        // Keep the service running until cancellation is requested
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(1000, stoppingToken);
+        }
+        
+        // Clean up resources
+        channel?.Dispose();
+        connection?.Dispose();
     }
 }
 
-// Thêm class tạm cho deserialize message
+// Helper classes outside the BasketCheckoutConsumer class, but inside the namespace
 internal class BasketCheckoutMessage
 {
     [JsonPropertyName("userId")]
