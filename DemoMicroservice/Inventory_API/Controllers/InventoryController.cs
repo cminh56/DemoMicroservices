@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Inventory_API.Application.Services;
 using Inventory_API.Common.DTO;
 using Inventory_API.Common.Helpers;
@@ -7,6 +8,7 @@ namespace Inventory_API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+
 public class InventoryController : ControllerBase
 {
     private readonly InventoryService _inventoryService;
@@ -107,6 +109,7 @@ public class InventoryController : ControllerBase
     }
 
     [HttpPost]
+    //[Authorize]
     public async Task<ActionResult<ApiResponse<InventoryDTO>>> Create([FromBody] CreateInventoryDTO createDto)
     {
         try
@@ -126,6 +129,7 @@ public class InventoryController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    //[Authorize]
     public async Task<ActionResult<ApiResponse<InventoryDTO>>> Update(Guid id, [FromBody] UpdateInventoryDTO updateDto)
     {
         try
@@ -150,6 +154,7 @@ public class InventoryController : ControllerBase
     }
 
     [HttpPut("product/{productId:guid}/quantity")]
+    //[Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> UpdateProductQuantity(Guid productId, [FromBody] UpdateQuantityDTO updateDto)
     {
         try
@@ -174,6 +179,7 @@ public class InventoryController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {
         try
