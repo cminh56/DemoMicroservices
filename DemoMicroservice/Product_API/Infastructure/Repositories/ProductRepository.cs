@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Product_API.Domain.Entities;
 using Product_API.Domain.Interfaces;
 using Product_API.Infastructure.DataContext;
+using System.Linq;
 
 namespace Product_API.Infastructure.Repositories
 {
@@ -25,6 +26,40 @@ namespace Product_API.Infastructure.Repositories
         public async Task<IEnumerable<Product>> GetAllAsync()
         {
             return await _context.Products.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Product>> GetFilteredAsync(Guid? categoryId, string? searchTerm, decimal? minPrice, decimal? maxPrice)
+        {
+            IQueryable<Product> query = _context.Products;
+
+            // Filter by category
+            if (categoryId.HasValue && categoryId != Guid.Empty)
+            {
+                query = query.Where(p => p.CategoryID == categoryId);
+            }
+
+            // Filter by search term
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                searchTerm = searchTerm.ToLower();
+                query = query.Where(p => 
+                    p.Name.ToLower().Contains(searchTerm) || 
+                    (p.Description != null && p.Description.ToLower().Contains(searchTerm))
+                );
+            }
+
+            // Filter by price range
+            if (minPrice.HasValue)
+            {
+                query = query.Where(p => p.Price >= minPrice.Value);
+            }
+
+            if (maxPrice.HasValue)
+            {
+                query = query.Where(p => p.Price <= maxPrice.Value);
+            }
+
+            return await query.ToListAsync();
         }
 
         public async Task<Product> AddAsync(Product product)

@@ -5,6 +5,7 @@ using Product_API.Common.Constants;
 using Product_API.Domain.Entities;
 using Product_API.Domain.Interfaces;
 using Product_API.Common.DTO;
+using System.Linq;
 
 namespace Product_API.Application.Services
 {
@@ -22,6 +23,11 @@ namespace Product_API.Application.Services
         public async Task<IEnumerable<Product>> GetAllAsync()
         {
             return await _productRepository.GetAllAsync();
+        }
+
+        public async Task<IEnumerable<Product>> GetFilteredAsync(Guid? categoryId, string? searchTerm, decimal? minPrice, decimal? maxPrice)
+        {
+            return await _productRepository.GetFilteredAsync(categoryId, searchTerm, minPrice, maxPrice);
         }
 
         public async Task<Product?> GetByIdAsync(Guid id)
@@ -42,6 +48,12 @@ namespace Product_API.Application.Services
             var categories = await _categoryHttpClientService.GetCategoriesAsync();
             if (categories == null || !categories.Any(c => c.Id == product.CategoryID))
                 throw new ArgumentException("CategoryID is invalid");
+
+            // Set default image URL if not provided
+            if (string.IsNullOrEmpty(product.ImageUrl))
+            {
+                product.ImageUrl = "https://via.placeholder.com/300x300?text=Product+Image";
+            }
 
             await _productRepository.AddAsync(product);
             return product;
@@ -69,6 +81,15 @@ namespace Product_API.Application.Services
             existingProduct.Description = product.Description;
             existingProduct.Price = product.Price;
             existingProduct.CategoryID = product.CategoryID;
+            
+            // Update ImageUrl if provided, otherwise keep existing
+            if (!string.IsNullOrEmpty(product.ImageUrl))
+            {
+                existingProduct.ImageUrl = product.ImageUrl;
+            }
+            
+            // Update the UpdatedAt timestamp
+            existingProduct.UpdatedAt = DateTime.UtcNow;
 
             await _productRepository.UpdateAsync(existingProduct);
             return existingProduct;

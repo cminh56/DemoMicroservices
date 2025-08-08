@@ -17,6 +17,9 @@ public class Product
     [StringLength(500)]
     public string? Description { get; set; }
 
+    [StringLength(500)]
+    public string? ImageUrl { get; set; }
+
     public Guid CategoryID { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
